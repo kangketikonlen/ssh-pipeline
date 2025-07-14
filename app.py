@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import time
 import tempfile
 import paramiko
 from scp import SCPClient, SCPException
@@ -52,11 +53,10 @@ def expand_path(p_str: Optional[str]) -> Optional[str]:
     return os.path.expandvars(cleaned_path)
 
 def execute_remote_commands(ssh_client: paramiko.SSHClient, commands: str, stage_name: str):
-    """Executes a block of commands on the remote server."""
+    """Executes a block of commands on the remote server and streams the output."""
     print(f"Executing commands for: {stage_name}")
     
-    # Filter out empty lines more cleanly
-    command_list = [line.strip() for line in commands.splitlines() if line.strip()]
+    command_list = [line.strip() for line in commands.splitlines() if line.strip() and not line.strip().startswith('#')]
     if not command_list:
         print("No commands to execute.")
         return
@@ -64,23 +64,54 @@ def execute_remote_commands(ssh_client: paramiko.SSHClient, commands: str, stage
     full_command = " && ".join(command_list)
     print(f"--> Running: {full_command}\n")
 
-    stdin, stdout, stderr = ssh_client.exec_command(full_command)
-    exit_status = stdout.channel.recv_exit_status()
+    # --- REAL-TIME STREAMING LOGIC ---
+    # Use invoke_shell() to get an interactive session
+    channel = ssh_client.invoke_shell()
+    
+    # Send the command to the channel
+    channel.send(full_command + '\n')
+    
+    # We need to send an exit command to properly close the shell
+    channel.send('exit\n')
 
-    # Read and print output
-    output = stdout.read().decode().strip()
-    error = stderr.read().decode().strip()
+    exit_status = -1
+    while not channel.closed:
+        # Read from stdout
+        if channel.recv_ready():
+            output = channel.recv(1024).decode('utf-8')
+            sys.stdout.write(output)
+            sys.stdout.flush()
 
-    if output:
-        print(f"✅ Output:\n{output}")
-    if error:
-        print(f"❌ Error Output:\n{error}")
+        # Read from stderr
+        if channel.recv_stderr_ready():
+            error = channel.recv_stderr(1024).decode('utf-8')
+            sys.stderr.write(error)
+            sys.stderr.flush()
+        
+        # Check if the command has finished
+        if channel.exit_status_ready():
+            exit_status = channel.recv_exit_status()
+            break
+        
+        time.sleep(0.1) # Small sleep to prevent busy-waiting
+
+    # Final check for any remaining output
+    while channel.recv_ready():
+        sys.stdout.write(channel.recv(1024).decode('utf-8'))
+        sys.stdout.flush()
+
+    while channel.recv_stderr_ready():
+        sys.stderr.write(channel.recv_stderr(1024).decode('utf-8'))
+        sys.stderr.flush()
+    
+    # --- END OF STREAMING LOGIC ---
 
     if exit_status != 0:
         print(f"\n🚨 Command failed with exit status: {exit_status}")
         sys.exit(1)
     
-    print("-" * 20)
+    print("\n" + "-" * 20)
+
 
 def perform_scp_transfer(ssh_client: paramiko.SSHClient, scp_def: str):
     """Parses SCP definitions and transfers files."""
@@ -175,9 +206,7 @@ def main():
         ssh.load_system_host_keys()
         if known_hosts_path:
             ssh.load_host_keys(known_hosts_path)
-        # For environments where you can't provide known_hosts but want less security than full verification:
-        # ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
-
+        
         try:
             print(f"Connecting to {CONFIG['user']}@{CONFIG['host']}...")
             ssh.connect(
