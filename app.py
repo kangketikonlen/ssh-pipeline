@@ -86,19 +86,23 @@ def perform_scp_transfer(ssh_client: paramiko.SSHClient, scp_def: str):
     """Parses SCP definitions and transfers files."""
     copy_jobs = []
     for line in scp_def.splitlines():
-        if "=>" not in line:
-            if line.strip():
-                print(f"⚠️ SCP Ignored (missing '=>'): {line.strip()}")
+        stripped_line = line.strip()
+        # IMPROVEMENT: Ignore empty lines and comments starting with '#'
+        if not stripped_line or stripped_line.startswith('#'):
+            continue
+
+        if "=>" not in stripped_line:
+            print(f"⚠️ SCP Ignored (missing '=>'): {stripped_line}")
             continue
         
-        local_part, remote_part = [part.strip() for part in line.split("=>", 1)]
+        local_part, remote_part = [part.strip() for part in stripped_line.split("=>", 1)]
         local_path = expand_path(local_part)
         remote_path = expand_path(remote_part)
 
         if local_path and remote_path:
             copy_jobs.append({"local": local_path, "remote": remote_path})
         else:
-            print(f"⚠️ SCP Ignored (invalid path): {line.strip()}")
+            print(f"⚠️ SCP Ignored (invalid path): {stripped_line}")
 
     if not copy_jobs:
         print("No valid SCP jobs found.")
@@ -106,8 +110,11 @@ def perform_scp_transfer(ssh_client: paramiko.SSHClient, scp_def: str):
         
     # Progress bar callback
     def progress(filename, size, sent):
+        # FIX: The 'filename' from scp is bytes, so we must decode it to a string.
+        filename_str = filename.decode('utf-8', 'replace')
         percent_done = float(sent) / float(size) * 100
-        sys.stdout.write(f"\r  -> Uploading {Path(filename).name}: {percent_done:.2f}%")
+        # Now we use the decoded string with Path()
+        sys.stdout.write(f"\r  -> Uploading {Path(filename_str).name}: {percent_done:.2f}%")
         sys.stdout.flush()
 
     try:
