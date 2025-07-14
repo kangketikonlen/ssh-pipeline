@@ -37,7 +37,7 @@ jobs:
           user: ${{ secrets.SSH_USER }}
           # key: ${{ secrets.SSH_PRIVATE_KEY }}
           known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
-          password: ${{ secrets.SSH_PASSWORD }}
+          pass: ${{ secrets.SSH_PASSWORD }}
 
           # --- Pipeline Commands ---
           # Here you define the actual work to be done on the server.
