@@ -40,7 +40,7 @@ RUN chmod +x entrypoint.sh && chown -R appuser:appuser /home/appuser
 USER appuser
 
 # Set the entrypoint
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["./home/appuser/entrypoint.sh"]
 
 # Add labels for GitHub Actions
 LABEL "maintainer"="Kangketik <pratamapriadi96@gmail.com>"
