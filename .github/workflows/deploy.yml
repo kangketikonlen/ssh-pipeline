@@ -1,0 +1,60 @@
+# .github/workflows/deploy.yml
+name: Deploy to Server via SSH
+
+# --- Trigger Conditions ---
+# This workflow runs automatically on pushes to the 'main' branch.
+# It also has 'workflow_dispatch' so you can run it manually from the Actions tab.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  # A single job in this workflow, named 'deploy'
+  deploy:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    steps:
+      # --- Step 1: Check out the repository's code ---
+      # This is crucial. It downloads your repository code onto the runner,
+      # so that your action can access local files (like a README or build artifacts).
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --- Step 2: Run your SSH/SCP Pipeline Action ---
+      # This step uses the action from the current repository.
+      # The 'uses: ./' syntax tells GitHub to look for an action.yml file
+      # in the root of this same repository.
+      - name: Run SSH/SCP Pipeline
+        uses: ./ # Use './' to run the action from this repo
+        with:
+          # --- Connection Details (from Secrets) ---
+          # All sensitive values are pulled from GitHub Secrets.
+          # Never write them directly in the workflow file!
+          host: ${{ secrets.SSH_HOST }}
+          user: ${{ secrets.SSH_USER }}
+          # key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.SSH_KNOWN_HOSTS }}
+          password: ${{ secrets.SSH_PASSWORD }}
+
+          # --- Pipeline Commands ---
+          # Here you define the actual work to be done on the server.
+          # Use the pipe '|' for multiline commands.
+          first_ssh: |
+            echo "Starting deployment..."
+            echo "Connected from a GitHub Actions runner!"
+            ls -a
+
+          scp: |
+            # Copy the README.md from the runner to the /tmp/ directory on the server.
+            # You could also copy build artifacts here, e.g., 'build/* => /var/www/html'
+            README.md => /tmp/
+
+          last_ssh: |
+            echo "File transfer complete."
+            echo "Verifying file on remote server:"
+            ls -l /tmp/README.md
+            echo "Deployment finished at $(date)"
+

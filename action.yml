@@ -1,0 +1,42 @@
+name: "SSH-SCP-SSH Pipeline"
+description: "Connect to a server to run commands, copy files, and run more commands, all in one action."
+author: "Scott Ng (Updated by Gemini)"
+inputs:
+  host:
+    description: "Remote server hostname or IP address."
+    required: true
+  port:
+    description: "SSH port on the remote server."
+    default: "22"
+    required: false
+  user:
+    description: "SSH username for the remote server."
+    required: true
+  key:
+    description: "SSH private key to authenticate. (Use GitHub secrets!)"
+    required: false
+  pass:
+    description: "SSH password to authenticate. (Use GitHub secrets!)"
+    required: false
+  known_hosts:
+    description: "The public host key of the remote server to prevent MITM attacks. (Use GitHub secrets!)"
+    required: true # Making this required for better security
+  connect_timeout:
+    description: "Connection timeout. Use 's' for seconds, 'm' for minutes. Ex: '60s' or '1m'."
+    default: "30s"
+    required: false
+  first_ssh:
+    description: "Multiline block of commands to run before the SCP transfer."
+    required: false
+  scp:
+    description: "Multiline block of files to copy. Format: 'local/path => remote/path'"
+    required: false
+  last_ssh:
+    description: "Multiline block of commands to run after the SCP transfer."
+    required: false
+runs:
+  using: "docker"
+  image: "Dockerfile"
+branding:
+  icon: "terminal"
+  color: "gray-dark"
